@@ -1,0 +1,82 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      REACT_APP_API_URL:
+        type: string
+        required: true
+      REACT_APP_CANONICAL_DOMAIN:
+        type: string
+        required: false
+      REACT_APP_FIREBASE_CONFIG:
+        type: string
+        required: true
+      channelId:
+        type: string
+        required: true
+        default: 'preview'
+        description: 'preview/live'
+      projectId:
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        id: use_node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.15.0
+          cache: ''
+
+      - name: Add cache
+        uses: actions/cache@v3
+        id: cache
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Set REACT_APP_VERSION
+        id: set_version
+        run: echo "REACT_APP_VERSION=$(git describe --tags --exclude="v*" | sed -e 's/-/./' -e 's/-g.*//' -e 's/^/v/')" >> $GITHUB_ENV
+
+      - name: Build
+        run: npm run build
+        env:
+          GENERATE_SOURCEMAP: false
+          NODE_ENV: production
+          REACT_APP_API_URL: ${{ inputs.REACT_APP_API_URL }}
+          REACT_APP_CANONICAL_DOMAIN: ${{ inputs.REACT_APP_CANONICAL_DOMAIN }}
+          REACT_APP_FIREBASE_CONFIG: ${{ inputs.REACT_APP_FIREBASE_CONFIG }}
+
+      - name: Deploy preview
+        id: deploy_preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        if: inputs.channelId == 'preview'
+        with:
+          firebaseServiceAccount: ${{ secrets.GOOGLE_CREDENTIALS }}
+          projectId: ${{ inputs.projectId }}
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseToolsVersion: 11.24.1
+
+      - name: Deploy live
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        if: inputs.channelId == 'live'
+        with:
+          channelId: live
+          firebaseServiceAccount: ${{ secrets.GOOGLE_CREDENTIALS }}
+          firebaseToolsVersion: 11.24.1
+          projectId: ${{ inputs.projectId }}
+          repoToken: ${{ secrets.GITHUB_TOKEN }}

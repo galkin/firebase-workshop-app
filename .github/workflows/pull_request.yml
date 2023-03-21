@@ -1,0 +1,30 @@
+name: Validate pull title
+
+on:
+  pull_request:
+    types: [ opened, edited, synchronize, reopened ]
+
+jobs:
+  validate:
+    name: Validate pull title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Request title rules
+        uses: deepakputhraya/action-pr-title@v1.0.2
+        with:
+          allowed_prefixes: 'TRI-'
+          github_token: ${{ github.token }}
+
+  test:
+    uses: ./.github/workflows/test.yml
+    needs: validate
+
+  build_and_preview:
+    uses: ./.github/workflows/firebase_deploy.yml
+    with:
+      REACT_APP_API_URL: https://api.dev.trialbase.dev/graphql
+      REACT_APP_FIREBASE_CONFIG: '{"apiKey":"AIzaSyCvSTxC8ZGe1M_xRuEBscTHtWhpfLbDsGk","authDomain":"app.dev.trialbase.dev","projectId":"trialbase-web-dev","storageBucket":"trialbase-web-dev.appspot.com","messagingSenderId":"64438165441","appId":"1:64438165441:web:6a1cd0167eb3347bf05940","measurementId":"G-LM8XR6MQM0"}'
+      channelId: preview
+      projectId: trialbase-web-dev
+    secrets: inherit
+    needs: test
